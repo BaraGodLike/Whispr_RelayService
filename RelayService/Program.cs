@@ -5,13 +5,14 @@ using Infrastructure.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RelayService.Logging;
 using RelayService.Services;
-using Worker;
 
 var builder = WebApplication.CreateBuilder(args);
+var grpcPort = builder.Configuration.GetValue<int?>("Grpc:Port") ?? 8080;
 
 builder.Logging.ClearProviders();
 builder.Services.Configure<RelayJsonConsoleFormatterOptions>(builder.Configuration.GetSection("ServiceMetadata"));
@@ -26,7 +27,7 @@ builder.Logging.AddConsole(options => options.FormatterName = RelayJsonConsoleFo
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(8080, listenOptions => listenOptions.Protocols = HttpProtocols.Http2);
+    options.ListenAnyIP(grpcPort, listenOptions => listenOptions.Protocols = HttpProtocols.Http2);
 });
 
 builder.Services.AddGrpc();
@@ -36,8 +37,7 @@ builder.Services
     .AddApplicationServices(builder.Configuration)
     .AddStorageInfrastructure(builder.Configuration)
     .AddCachingInfrastructure(builder.Configuration)
-    .AddMessagingInfrastructure(builder.Configuration)
-    .AddWorkerServices();
+    .AddMessagingInfrastructure(builder.Configuration);
 
 builder.Services
     .AddHealthChecks()

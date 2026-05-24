@@ -1,4 +1,5 @@
 using Application.Abstractions;
+using Application.Contracts;
 using Dapper;
 using Domain;
 using Infrastructure.Storage.Options;
@@ -7,7 +8,7 @@ using Npgsql;
 namespace Infrastructure.Storage;
 
 public sealed class PostgresPendingMessageRepository(
-    NpgsqlDataSource dataSource) : IPendingMessageStore, IPendingMessageQueryRepository, IMessagePayloadReader, IOutboxBatchRepository
+    NpgsqlDataSource dataSource) : IPendingMessageStore, IPendingMessageQueryRepository, IMessagePayloadReader, IOutboxBatchRepository, IExpiredMessageCleanupRepository
 {
     public async Task<EnqueueStoreResult> EnqueueAsync(
         PendingMessage pendingMessage,
@@ -67,30 +68,62 @@ public sealed class PostgresPendingMessageRepository(
 
     public async Task<bool> DeleteAsync(Guid msgId, CancellationToken cancellationToken)
     {
-        const string sql =
+        const string deletePublishedOutboxSql =
+            """
+            delete from outbox_events
+            where msg_id = @MsgId
+              and published = true;
+            """;
+
+        const string deletePendingSql =
             """
             delete from pending_messages
             where msg_id = @MsgId;
             """;
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await connection.ExecuteAsync(
+            new CommandDefinition(deletePublishedOutboxSql, new { MsgId = msgId }, transaction, cancellationToken: cancellationToken));
+
         var affectedRows = await connection.ExecuteAsync(
-            new CommandDefinition(sql, new { MsgId = msgId }, cancellationToken: cancellationToken));
+            new CommandDefinition(deletePendingSql, new { MsgId = msgId }, transaction, cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
 
         return affectedRows > 0;
     }
 
     public async Task<int> DeleteBatchAsync(IReadOnlyCollection<Guid> msgIds, CancellationToken cancellationToken)
     {
-        const string sql =
+        const string deletePublishedOutboxSql =
+            """
+            delete from outbox_events
+            where msg_id = any(@MsgIds)
+              and published = true;
+            """;
+
+        const string deletePendingSql =
             """
             delete from pending_messages
             where msg_id = any(@MsgIds);
             """;
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        return await connection.ExecuteAsync(
-            new CommandDefinition(sql, new { MsgIds = msgIds.ToArray() }, cancellationToken: cancellationToken));
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var ids = msgIds.ToArray();
+
+        await connection.ExecuteAsync(
+            new CommandDefinition(deletePublishedOutboxSql, new { MsgIds = ids }, transaction, cancellationToken: cancellationToken));
+
+        var deletedCount = await connection.ExecuteAsync(
+            new CommandDefinition(deletePendingSql, new { MsgIds = ids }, transaction, cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return deletedCount;
     }
 
     public async Task<IReadOnlyList<PendingMessage>> GetPendingMessagesAsync(
@@ -171,6 +204,113 @@ public sealed class PostgresPendingMessageRepository(
             await connection.DisposeAsync();
             throw;
         }
+    }
+
+    public async Task<ExpiredMessageCleanupBatchResult> DeleteExpiredBatchAsync(
+        DateTimeOffset cutoffUtc,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        const string selectPublishedOutboxBatchSql =
+            """
+            select event_id
+            from outbox_events
+            where published = true
+              and created_at < @CutoffUtc
+            order by created_at, event_id
+            limit @BatchSize
+            for update skip locked;
+            """;
+
+        const string deletePublishedOutboxSql =
+            """
+            delete from outbox_events
+            where event_id = any(@EventIds);
+            """;
+
+        const string selectBatchSql =
+            """
+            select msg_id
+            from pending_messages
+            where created_at < @CutoffUtc
+            order by created_at, msg_id
+            limit @BatchSize
+            for update skip locked;
+            """;
+
+        const string deleteOutboxSql =
+            """
+            delete from outbox_events
+            where msg_id = any(@MsgIds);
+            """;
+
+        const string deletePendingSql =
+            """
+            delete from pending_messages
+            where msg_id = any(@MsgIds);
+            """;
+
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var publishedOutboxEventIds = (await connection.QueryAsync<Guid>(
+                new CommandDefinition(
+                    selectPublishedOutboxBatchSql,
+                    new
+                    {
+                        CutoffUtc = cutoffUtc.UtcDateTime,
+                        BatchSize = batchSize
+                    },
+                    transaction,
+                    cancellationToken: cancellationToken)))
+            .ToArray();
+
+        var deletedPublishedOutboxCount = publishedOutboxEventIds.Length == 0
+            ? 0
+            : await connection.ExecuteAsync(
+                new CommandDefinition(
+                    deletePublishedOutboxSql,
+                    new { EventIds = publishedOutboxEventIds },
+                    transaction,
+                    cancellationToken: cancellationToken));
+
+        var msgIds = (await connection.QueryAsync<Guid>(
+                new CommandDefinition(
+                    selectBatchSql,
+                    new
+                    {
+                        CutoffUtc = cutoffUtc.UtcDateTime,
+                        BatchSize = batchSize
+                    },
+                    transaction,
+                    cancellationToken: cancellationToken)))
+            .ToArray();
+
+        if (msgIds.Length == 0)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return new ExpiredMessageCleanupBatchResult(
+                0,
+                0,
+                0,
+                publishedOutboxEventIds.Length,
+                deletedPublishedOutboxCount);
+        }
+
+        var deletedRelatedOutboxCount = await connection.ExecuteAsync(
+            new CommandDefinition(deleteOutboxSql, new { MsgIds = msgIds }, transaction, cancellationToken: cancellationToken));
+
+        var deletedPendingCount = await connection.ExecuteAsync(
+            new CommandDefinition(deletePendingSql, new { MsgIds = msgIds }, transaction, cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return new ExpiredMessageCleanupBatchResult(
+            msgIds.Length,
+            deletedPendingCount,
+            deletedRelatedOutboxCount,
+            publishedOutboxEventIds.Length,
+            deletedPublishedOutboxCount);
     }
 
     private static async Task<IOutboxPublishLease?> DisposeEmptyLeaseAsync(

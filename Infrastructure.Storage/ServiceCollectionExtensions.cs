@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPendingMessageStore>(sp => sp.GetRequiredService<PostgresPendingMessageRepository>());
         services.AddScoped<IPendingMessageQueryRepository>(sp => sp.GetRequiredService<PostgresPendingMessageRepository>());
         services.AddScoped<IOutboxBatchRepository>(sp => sp.GetRequiredService<PostgresPendingMessageRepository>());
+        services.AddScoped<IExpiredMessageCleanupRepository>(sp => sp.GetRequiredService<PostgresPendingMessageRepository>());
 
         return services;
     }

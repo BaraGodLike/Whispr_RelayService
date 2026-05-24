@@ -12,9 +12,11 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<MessageCachingOptions>(configuration.GetSection("Caching"));
         services.Configure<OutboxPublisherOptions>(configuration.GetSection("OutboxPublisher"));
+        services.Configure<ExpiredMessageCleanupOptions>(configuration.GetSection("ExpiredMessageCleanup"));
 
         services.AddScoped<IRelayApplicationService, RelayApplicationService>();
         services.AddScoped<IOutboxPublisherService, OutboxPublisherService>();
+        services.AddScoped<IExpiredMessageCleanupService, ExpiredMessageCleanupService>();
 
         return services;
     }
