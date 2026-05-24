@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+option csharp_namespace = "RelayService.Protos";
+
+package relay.v1;
+
+service Relay {
+  rpc EnqueueMessage (EnqueueMessageRequest) returns (EnqueueMessageResponse);
+  rpc GetMessage (GetMessageRequest) returns (GetMessageResponse);
+  rpc GetPendingMessages (GetPendingMessagesRequest) returns (GetPendingMessagesResponse);
+  rpc AckMessage (AckMessageRequest) returns (AckMessageResponse);
+  rpc AckMessagesBatch (AckMessagesBatchRequest) returns (AckMessagesBatchResponse);
+}
+
+message EnqueueMessageRequest {
+  string msg_id = 1;
+  string dest_mailbox = 2;
+  bytes payload = 3;
+}
+
+message EnqueueMessageResponse {
+  bool accepted = 1;
+}
+
+message GetMessageRequest {
+  string msg_id = 1;
+}
+
+message GetMessageResponse {
+  bytes payload = 1;
+}
+
+message GetPendingMessagesRequest {
+  repeated string mailbox_ids = 1;
+  int32 limit = 2;
+}
+
+message PendingMessage {
+  string msg_id = 1;
+  string dest_mailbox = 2;
+  bytes payload = 3;
+}
+
+message GetPendingMessagesResponse {
+  repeated PendingMessage messages = 1;
+  bool has_more = 2;
+}
+
+message AckMessageRequest {
+  string msg_id = 1;
+}
+
+message AckMessageResponse {
+  bool success = 1;
+}
+
+message AckMessagesBatchRequest {
+  repeated string msg_ids = 1;
+}
+
+message AckMessagesBatchResponse {
+  int32 acked_count = 1;
+}
