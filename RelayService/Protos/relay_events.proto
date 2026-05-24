@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option csharp_namespace = "RelayService.Protos";
+
+package relay.v1;
+
+message MessageEnqueuedEvent {
+  string msg_id = 1;
+  string dest_mailbox = 2;
+}
