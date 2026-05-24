@@ -45,12 +45,18 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     ports:
       - "${KAFKA_PORT}:9093"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
     environment:
       DYNAMIC_CONFIG_ENABLED: "true"
       KAFKA_CLUSTERS_0_NAME: local
@@ -75,8 +81,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
-        condition: service_started
       redis:
         condition: service_started
       migrator:
@@ -85,9 +89,6 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Redis__ConnectionString: redis:6379
-      Kafka__BootstrapServers: kafka:9092
-      Kafka__Topic: ${KAFKA_TOPIC}
-      Kafka__ClientId: ${RELAYSERVICE_KAFKA_CLIENT_ID}
       Grpc__Port: ${RELAY_GRPC_PORT}
       ServiceMetadata__ServiceName: RelayService
     ports:
@@ -101,7 +102,7 @@ services:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
       migrator:
         condition: service_completed_successfully
     environment:

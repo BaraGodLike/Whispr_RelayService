@@ -11,13 +11,18 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<MessageCachingOptions>(configuration.GetSection("Caching"));
-        services.Configure<OutboxPublisherOptions>(configuration.GetSection("OutboxPublisher"));
         services.Configure<ExpiredMessageCleanupOptions>(configuration.GetSection("ExpiredMessageCleanup"));
 
         services.AddScoped<IRelayApplicationService, RelayApplicationService>();
-        services.AddScoped<IOutboxPublisherService, OutboxPublisherService>();
         services.AddScoped<IExpiredMessageCleanupService, ExpiredMessageCleanupService>();
 
+        return services;
+    }
+
+    public static IServiceCollection AddOutboxPublishingApplicationServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<OutboxPublisherOptions>(configuration.GetSection("OutboxPublisher"));
+        services.AddScoped<IOutboxPublisherService, OutboxPublisherService>();
         return services;
     }
 }

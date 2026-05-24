@@ -42,7 +42,7 @@ Relay does not do:
 - `Domain` - core entities and constants.
 - `Infrastructure.Storage` - Postgres persistence, outbox leasing, health check.
 - `Infrastructure.Caching` - Redis and in-memory payload caching.
-- `Infrastructure.Messaging` - Kafka producer and Kafka health check.
+- `Infrastructure.Messaging` - Kafka producer and Kafka connectivity checks used by `OutboxWorker`.
 - `Worker` - shared background worker components for outbox publishing.
 - `OutboxWorker` - dedicated host process for outbox event publication.
 - `CleanupWorker` - dedicated retention job for expired pending and outbox records.
@@ -298,11 +298,11 @@ Retention notes:
 
 The service exposes the standard gRPC health service `grpc.health.v1.Health`.
 
-The current implementation marks health using:
+The current `RelayService` health check uses:
 - Postgres
-- Kafka
 
 Redis is optional for liveness because Relay can fall back to Postgres reads.
+Kafka is intentionally not part of `RelayService` health anymore and is owned by `OutboxWorker`.
 
 ## Logging
 
@@ -364,7 +364,6 @@ Copy [.env.example](.env.example) to `.env` and fill the required values:
 - `KAFKA_PORT`
 - `KAFKA_UI_PORT`
 - `KAFKA_TOPIC`
-- `RELAYSERVICE_KAFKA_CLIENT_ID`
 - `OUTBOX_WORKER_KAFKA_CLIENT_ID`
 - `RELAY_GRPC_PORT`
 

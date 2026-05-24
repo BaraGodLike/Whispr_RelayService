@@ -42,7 +42,7 @@ Relay не делает:
 - `Domain` - core entities и константы.
 - `Infrastructure.Storage` - Postgres persistence, outbox leasing, health check.
 - `Infrastructure.Caching` - Redis и in-memory caching payload.
-- `Infrastructure.Messaging` - Kafka producer и Kafka health check.
+- `Infrastructure.Messaging` - Kafka producer и Kafka connectivity checks, которые используются `OutboxWorker`.
 - `Worker` - общие компоненты фонового outbox publisher.
 - `OutboxWorker` - отдельный host-процесс для публикации outbox-событий.
 - `CleanupWorker` - отдельный retention worker для удаления просроченных pending и outbox-записей.
@@ -298,11 +298,11 @@ Payload события:
 
 Сервис публикует стандартный gRPC health service `grpc.health.v1.Health`.
 
-Текущее health-состояние определяется по:
+Текущий health-check `RelayService` определяется по:
 - Postgres
-- Kafka
 
 Redis не входит в обязательный health-gate, потому что Relay умеет читать напрямую из Postgres.
+Kafka намеренно больше не входит в health `RelayService` и целиком относится к зоне ответственности `OutboxWorker`.
 
 ## Логирование
 
@@ -364,7 +364,6 @@ Docker Compose поднимает:
 - `KAFKA_PORT`
 - `KAFKA_UI_PORT`
 - `KAFKA_TOPIC`
-- `RELAYSERVICE_KAFKA_CLIENT_ID`
 - `OUTBOX_WORKER_KAFKA_CLIENT_ID`
 - `RELAY_GRPC_PORT`
 

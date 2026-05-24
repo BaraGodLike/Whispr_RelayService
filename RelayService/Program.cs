@@ -1,6 +1,5 @@
 using Application;
 using Infrastructure.Caching;
-using Infrastructure.Messaging;
 using Infrastructure.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -36,13 +35,11 @@ builder.Services.AddGrpcHealthChecks();
 builder.Services
     .AddApplicationServices(builder.Configuration)
     .AddStorageInfrastructure(builder.Configuration)
-    .AddCachingInfrastructure(builder.Configuration)
-    .AddMessagingInfrastructure(builder.Configuration);
+    .AddCachingInfrastructure(builder.Configuration);
 
 builder.Services
     .AddHealthChecks()
-    .AddCheck<PostgresHealthCheck>("postgres")
-    .AddCheck<KafkaHealthCheck>("kafka");
+    .AddCheck<PostgresHealthCheck>("postgres");
 
 var app = builder.Build();
 

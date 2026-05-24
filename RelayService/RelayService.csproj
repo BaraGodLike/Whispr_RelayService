@@ -25,7 +25,6 @@
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Infrastructure.Storage\Infrastructure.Storage.csproj" />
     <ProjectReference Include="..\Infrastructure.Caching\Infrastructure.Caching.csproj" />
-    <ProjectReference Include="..\Infrastructure.Messaging\Infrastructure.Messaging.csproj" />
   </ItemGroup>
 
 </Project>

@@ -54,7 +54,9 @@ public static class ServiceCollectionExtensions
 
     private static void LogKafkaMessage(ILogger logger, LogMessage message)
     {
-        var logLevel = message.Level switch
+        var logLevel = IsExpectedTransientKafkaMessage(message)
+            ? LogLevel.Warning
+            : message.Level switch
         {
             SyslogLevel.Emergency => LogLevel.Critical,
             SyslogLevel.Alert => LogLevel.Critical,
@@ -73,5 +75,13 @@ public static class ServiceCollectionExtensions
             message.Facility,
             message.Name,
             message.Message);
+    }
+
+    private static bool IsExpectedTransientKafkaMessage(LogMessage message)
+    {
+        return message.Message.Contains("Connection refused", StringComparison.OrdinalIgnoreCase)
+               || message.Message.Contains("brokers are down", StringComparison.OrdinalIgnoreCase)
+               || message.Message.Contains("Coordinator load in progress", StringComparison.OrdinalIgnoreCase)
+               || message.Message.Contains("Failed to acquire idempotence PID", StringComparison.OrdinalIgnoreCase);
     }
 }

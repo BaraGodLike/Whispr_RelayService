@@ -22,6 +22,7 @@ builder.Logging.AddConsole(options => options.FormatterName = RelayJsonConsoleFo
 
 builder.Services
     .AddApplicationServices(builder.Configuration)
+    .AddOutboxPublishingApplicationServices(builder.Configuration)
     .AddStorageInfrastructure(builder.Configuration)
     .AddMessagingInfrastructure(builder.Configuration)
     .AddWorkerServices();
